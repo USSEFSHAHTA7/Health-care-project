@@ -198,7 +198,7 @@ if st.session_state.df is not None:
                 st.subheader("Basic Info")
                 buffer = StringIO()
                 st.session_state.df.info(buf=buffer)
-                st.text(buffer.getvalue())
+                st.code(buffer.getvalue(),language="text")
                 
             with col2:
                 st.subheader("Descriptive Statistics")
