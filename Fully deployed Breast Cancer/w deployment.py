@@ -27,6 +27,8 @@ import plotly.graph_objects as go
 import plotly.figure_factory as ff
 import base64
 import time
+from sklearn.preprocessing import LabelEncoder
+from lifelines import KaplanMeierFitter
 
 # Configure the app
 st.set_page_config(layout="wide", page_title="Breast Cancer Analysis")
@@ -247,7 +249,7 @@ if st.session_state.df is not None:
                     # Remove columns
                     if st.session_state.remove_cols:
                         df = df.drop(st.session_state.remove_cols, axis=1)
-                    
+                
                     # Handle outliers
                     if outlier_method != "None":
                         numeric_cols = df.select_dtypes(include=np.number).columns
@@ -836,40 +838,7 @@ if st.session_state.df is not None:
             st.header("📊 Advanced Visualizations")
             
             # Create a clean numeric dataframe for visualizations
-            viz_df = st.session_state.df.select_dtypes(include=np.number)
-            
-            # ================== Feature Engineering ==================
-            with st.expander("🧩 Feature Engineering", expanded=True):
-                st.subheader("Create New Features")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    num_feature1 = st.selectbox("First feature", viz_df.columns)
-                    num_feature2 = st.selectbox("Second feature", viz_df.columns)
-                    operation = st.selectbox("Operation", 
-                        ['Add', 'Subtract', 'Multiply', 'Divide', 'Ratio'])
-                
-                with col2:
-                    new_feature_name = st.text_input("New feature name", "feature_new")
-                    if st.button("💡 Create Feature"):
-                        try:
-                            if operation == 'Add':
-                                st.session_state.df[new_feature_name] = st.session_state.df[num_feature1] + st.session_state.df[num_feature2]
-                            elif operation == 'Subtract':
-                                st.session_state.df[new_feature_name] = st.session_state.df[num_feature1] - st.session_state.df[num_feature2]
-                            elif operation == 'Multiply':
-                                st.session_state.df[new_feature_name] = st.session_state.df[num_feature1] * st.session_state.df[num_feature2]
-                            elif operation == 'Divide':
-                                st.session_state.df[new_feature_name] = st.session_state.df[num_feature1] / (st.session_state.df[num_feature2] + 1e-6)
-                            elif operation == 'Ratio':
-                                st.session_state.df[new_feature_name] = st.session_state.df[num_feature1] / (st.session_state.df[num_feature2] + 1e-6)
-                            
-                            viz_df = st.session_state.df.select_dtypes(include=np.number)
-                            st.success(f"Created new feature: {new_feature_name}")
-                            st.experimental_rerun()
-                        except Exception as e:
-                            st.error(f"Error creating feature: {str(e)}")
-    
+            viz_df = st.session_state.df.select_dtypes(include=np.number).drop(['Unnamed: 32','id'], axis=1, errors='ignore')
             # ================== Core Visualizations ==================
             # Section 1: Interactive Histogram
             with st.expander("📊 Interactive Histogram", expanded=True):
