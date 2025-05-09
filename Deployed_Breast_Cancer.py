@@ -198,8 +198,7 @@ if st.session_state.df is not None:
                 st.subheader("Basic Info")
                 buffer = StringIO()
                 st.session_state.df.info(buf=buffer)
-                info_str = buffer.getvalue().replace("float64", "float").replace("int64", "int")  # Replacing float64 with float
-
+                info_str = buffer.getvalue()
                 st.code(info_str,language="text")
                 
             with col2:
