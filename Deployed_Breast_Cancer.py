@@ -63,14 +63,60 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### Data Management")
-    uploaded_file = st.file_uploader("Upload Dataset (CSV)", type=['csv'])
     
+    st.title("Upload Dataset (CSV, Excel, or JSON)")
+
+    # Support CSV, Excel, and JSON files
+    uploaded_file = st.file_uploader("Upload your dataset", type=['csv', 'xlsx', 'json'])
+
     if uploaded_file:
-        st.session_state.df = pd.read_csv(uploaded_file)
-        st.session_state.original_df = st.session_state.df.copy()
-        st.session_state.processed = False  # Reset processing state on new upload
-        st.success("Dataset loaded successfully!")
-    
+        file_type = uploaded_file.name.split('.')[-1]
+
+        try:
+            if file_type == 'csv':
+                df = pd.read_csv(uploaded_file)
+            elif file_type == 'xlsx':
+                df = pd.read_excel(uploaded_file)
+            elif file_type == 'json':
+                df = pd.read_json(uploaded_file)
+            else:
+                st.error("Unsupported file type.")
+                df = None
+
+            if df is not None:
+                st.session_state.df = df
+                st.session_state.original_df = df.copy()
+                st.session_state.processed = False
+                st.success(f"{file_type.upper()} file loaded successfully!")
+                st.dataframe(df)
+
+        except Exception as e:
+            st.error(f"Error reading the file: {e}")
+            
+    # Feature and target selection
+        if 'df' in st.session_state:
+            data = st.session_state.df
+
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("### 🔧 Feature Selection")
+            
+            features = [col for col in data.columns if col.lower() not in ['diagnosis']]
+            selected_features = st.sidebar.multiselect("**Select Input Features**", options=features, default=features)
+
+            target_options = [col for col in ['diagnosis','id']]
+            target = st.sidebar.selectbox("**Select Target Variable**", options=target_options)
+
+            if selected_features and target:
+                X = data[selected_features]
+                y = data[target]
+
+                st.write("### 📌 Selected Input Features")
+                st.dataframe(X.head())
+
+                st.write("### 🎯 Selected Target")
+                st.dataframe(y.head())
+                st.session_state.df = st.session_state.df[selected_features + [target]]
+                
     st.markdown("---")
     st.markdown("### About This App")
     st.info("""
@@ -219,23 +265,15 @@ if st.session_state.df is not None:
         
         with eda_process_tab:
             st.header("Data Processing Options")
-            
-            # Column selection
-            st.subheader("1. Column Selection")
-            st.session_state.remove_cols = st.multiselect(
-                "Select columns to remove",
-                options=st.session_state.df.columns,
-                default=['Unnamed: 32'] if 'Unnamed: 32' in st.session_state.df.columns else None
-            )
-            
+                        
             # Outlier detection
-            st.subheader("2. Outlier Detection")
+            st.subheader("1. Outlier Detection")
             if st.button("Detect Outliers"):
                 st.session_state.outliers_count = detect_outliers(st.session_state.df)
                 st.dataframe(st.session_state.outliers_count)
             
             # Outlier handling
-            st.subheader("3. Outlier Handling")
+            st.subheader("2. Outlier Handling")
             st.markdown("💡 *Capping is generally preferred over removal*")
             outlier_method = st.radio(
                 "Select outlier handling method:",
@@ -245,12 +283,7 @@ if st.session_state.df is not None:
             
             if st.button("Apply Processing"):
                 with st.spinner("Processing data..."):
-                    df = st.session_state.original_df.copy()
-                    
-                    # Remove columns
-                    if st.session_state.remove_cols:
-                        df = df.drop(st.session_state.remove_cols, axis=1)
-                
+                    df = st.session_state.original_df.copy()                    
                     # Handle outliers
                     if outlier_method != "None":
                         numeric_cols = df.select_dtypes(include=np.number).columns
@@ -839,7 +872,7 @@ if st.session_state.df is not None:
             st.header("📊 Advanced Visualizations")
             
             # Create a clean numeric dataframe for visualizations
-            viz_df = st.session_state.df.select_dtypes(include=np.number).drop(['Unnamed: 32','id'], axis=1, errors='ignore')
+            viz_df = st.session_state.df.select_dtypes(include=np.number)
             # ================== Core Visualizations ==================
             # Section 1: Interactive Histogram
             with st.expander("📊 Interactive Histogram", expanded=True):
