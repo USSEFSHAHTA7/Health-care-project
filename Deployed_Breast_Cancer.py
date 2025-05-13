@@ -1409,8 +1409,8 @@ if st.session_state.df is not None:
         
         # Initialize selected_features in session state if it doesn't exist
         if 'selected_features' not in st.session_state:
-            st.session_state.df.drop(['id','Unnamed: 32'], axis=1, inplace=True)
-            st.session_state.selected_features = st.session_state.df.columns.tolist()
+            new_features = st.session_state.df.drop(['id','Unnamed: 32'], axis=1)
+            st.session_state.selected_features = new_features.columns.tolist()
         
         if st.session_state.df is not None:
             def predict_new_sample(model, sample_df, feature_columns):
