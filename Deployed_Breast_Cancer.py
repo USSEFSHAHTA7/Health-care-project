@@ -1550,27 +1550,27 @@ if st.session_state.df is not None:
                         st.success(f"✅ Final Decision: {final_prediction} (Certainty: {certainty})")
                         st.image("happy.png", width=260) 
                     #____________________________________________________________________________________________                            
-                        def analyze_weighted_votes(malignant_votes, benign_votes):
-                            total_votes = malignant_votes + benign_votes
-                            malignant_percentage = (malignant_votes / total_votes) * 100
-                            benign_percentage = (benign_votes / total_votes) * 100
-                            
-                            if malignant_votes > benign_votes:
-                                final_decision = "Malignant (M)"
-                                agreement_summary = f"""
-                                Malignant received {malignant_percentage:.1f}% of the weighted votes,
-                                while Benign received {benign_percentage:.1f}%.
-                                Thus, the final diagnosis is **Malignant** based on majority weighted consensus.
-                                """
-                            else:
-                                final_decision = "Benign (B)"
-                                agreement_summary = f"""
-                                Benign received {benign_percentage:.1f}% of the weighted votes,
-                                while Malignant received {malignant_percentage:.1f}%.
-                                Thus, the final diagnosis is **Benign** based on majority weighted consensus.
-                                """
-                            
-                            return final_decision, agreement_summary.strip()
+                    def analyze_weighted_votes(malignant_votes, benign_votes):
+                        total_votes = malignant_votes + benign_votes
+                        malignant_percentage = (malignant_votes / total_votes) * 100
+                        benign_percentage = (benign_votes / total_votes) * 100
+                        
+                        if malignant_votes > benign_votes:
+                            final_decision = "Malignant (M)"
+                            agreement_summary = f"""
+                            Malignant received {malignant_percentage:.1f}% of the weighted votes,
+                            while Benign received {benign_percentage:.1f}%.
+                            Thus, the final diagnosis is **Malignant** based on majority weighted consensus.
+                            """
+                        else:
+                            final_decision = "Benign (B)"
+                            agreement_summary = f"""
+                            Benign received {benign_percentage:.1f}% of the weighted votes,
+                            while Malignant received {malignant_percentage:.1f}%.
+                            Thus, the final diagnosis is **Benign** based on majority weighted consensus.
+                            """
+                        
+                        return final_decision, agreement_summary.strip()
 #____________________________________________________________________________________________
                     def generate_medical_report_dynamic(final_decision, certainty, agreement_summary):
                         if final_decision == "Benign (B)":
