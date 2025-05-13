@@ -1404,16 +1404,13 @@ if st.session_state.df is not None:
         else:
             st.info("Please load data in the EDA section first")
     elif st.session_state.current_tab == "📊 Predictions on Pretrained Models":
-        selected_features = ['radius_mean', 'perimeter_mean', 'area_mean', 'compactness_mean',
-       'concavity_mean', 'concave points_mean', 'radius_se', 'perimeter_se',
-       'area_se', 'radius_worst', 'perimeter_worst', 'area_worst',
-       'compactness_worst', 'concavity_worst', 'concave points_worst',
-       'diagnosis']
+        
         st.header(" Predictions on Pretrained Models with the preselected features")
         
         # Initialize selected_features in session state if it doesn't exist
         if 'selected_features' not in st.session_state:
-            st.session_state.selected_features = selected_features
+            st.session_state.df.drop(['id','Unnamed: 32'], axis=1, inplace=True)
+            st.session_state.selected_features = st.session_state.df.columns.tolist()
         
         if st.session_state.df is not None:
             def predict_new_sample(model, sample_df, feature_columns):
