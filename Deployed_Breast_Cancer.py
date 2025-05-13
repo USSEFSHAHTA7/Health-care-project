@@ -29,6 +29,7 @@ import base64
 import time
 from sklearn.preprocessing import LabelEncoder
 from lifelines import KaplanMeierFitter
+import joblib
 
 # Configure the app
 st.set_page_config(layout="wide", page_title="Breast Cancer Analysis")
@@ -57,7 +58,8 @@ with st.sidebar:
         "Select Analysis Phase:",
         ["🔍 Exploratory Data Analysis", 
          "🤖 Machine Learning Modeling", 
-         "📈 Advanced Visualizations"],
+         "📈 Advanced Visualizations",
+         "📊 Predictions on Pretrained Models"],
         index=0
     )
     
@@ -1401,5 +1403,355 @@ if st.session_state.df is not None:
     
         else:
             st.info("Please load data in the EDA section first")
+    elif st.session_state.current_tab == "📊 Predictions on Pretrained Models":
+        selected_features = ['radius_mean', 'perimeter_mean', 'area_mean', 'compactness_mean',
+       'concavity_mean', 'concave points_mean', 'radius_se', 'perimeter_se',
+       'area_se', 'radius_worst', 'perimeter_worst', 'area_worst',
+       'compactness_worst', 'concavity_worst', 'concave points_worst',
+       'diagnosis']
+        st.header(" Predictions on Pretrained Models with the preselected features")
+        
+        # Initialize selected_features in session state if it doesn't exist
+        if 'selected_features' not in st.session_state:
+            st.session_state.selected_features = selected_features
+        
+        if st.session_state.df is not None:
+            def predict_new_sample(model, sample_df, feature_columns):
+                """Make prediction on new sample and return formatted results"""
+                try:
+                    # Ensure sample has same features as training data
+                    sample = sample_df[feature_columns]
+                    prediction = model.predict(sample)
+                    proba = model.predict_proba(sample)[0]
+                    
+                    return {
+                        'prediction': 'Malignant (M)' if prediction[0] == 1 else 'Benign (B)',
+                        'confidence': f"{max(proba)*100:.1f}%",
+                        'malignant_prob': f"{proba[1]*100:.1f}%",
+                        'benign_prob': f"{proba[0]*100:.1f}%"
+                    }
+                except Exception as e:
+                    st.error(f"Prediction failed: {str(e)}")
+                    return None
+
+            st.subheader("3. Make Predictions")
+            
+            # Load models from .pkl files
+            try:
+                models = {
+                    'Logistic Regression': joblib.load('lg_model.pkl'),
+                    'Random Forest': joblib.load('rf_model.pkl'),
+                    'SVM': joblib.load('svm_model.pkl'),
+                    'Decision Tree': joblib.load('dt_model.pkl')
+                }
+                st.session_state.models = models
+            except Exception as e:
+                st.error(f"Failed to load one or more models: {str(e)}")
+                st.stop()
+
+            # Create input form
+            with st.form("prediction_form"):
+                st.markdown("**Enter feature values for prediction:**")
+                
+                input_data = {}
+                cols = st.columns(3)
+                
+                # Get default values - ensure we only use numeric features
+                if 'X_train' not in st.session_state:
+                    numeric_features = st.session_state.df[st.session_state.selected_features].select_dtypes(include=['number']).columns
+                    st.session_state.X_train = st.session_state.df[numeric_features]
+                
+                default_values = {
+                    feature: float(st.session_state.X_train[feature].mean())
+                    for feature in st.session_state.X_train.columns
+                }
+                
+                # Create input fields only for numeric features
+                for i, feature in enumerate(st.session_state.X_train.columns):
+                    with cols[i % 3]:
+                        input_data[feature] = st.number_input(
+                            label=feature,
+                            value=default_values[feature],
+                            step=0.01,
+                            format="%.4f",
+                            key=f"input_{feature}"
+                        )
+                
+                # Submit button is properly placed here
+                submitted = st.form_submit_button("Predict Diagnosis")
+                
+                if submitted:
+                    sample_df = pd.DataFrame([input_data])
+                    
+                    st.markdown("**Input Features:**")
+                    st.dataframe(sample_df.style.format("{:.4f}"))
+                    
+                    # Get predictions from all models
+                    predictions = {}
+                    for name, model in st.session_state.models.items():
+                        predictions[name] = predict_new_sample(
+                            model, 
+                            sample_df, 
+                            st.session_state.X_train.columns
+                        )
+                    
+                    # Display individual model predictions
+                    st.markdown("**Model Predictions:**")
+                    model_cols = st.columns(len(predictions))
+                    
+                    for (model_name, pred), col in zip(predictions.items(), model_cols):
+                        with col:
+                            if pred['prediction'].startswith('Malignant'):
+                                emoji = "🔴"  # Red circle for malignant
+                            else:
+                                emoji = "🟢"  # Green circle for benign
+                            
+                            st.metric(
+                                f"{emoji} {model_name}",
+                                pred['prediction'],
+                                help=f"Confidence: {pred['confidence']}\nMalignant prob: {pred['malignant_prob']}\nBenign prob: {pred['benign_prob']}"
+                            )
+                    
+                    # Calculate final weighted decision
+                    st.markdown("---")
+                    st.subheader("Final Diagnosis Decision")
+                    
+                    # Define model weights (based on test accuracy)
+                    model_weights = {
+                        'Logistic Regression': 0.3,
+                        'Random Forest': 0.4,
+                        'SVM': 0.2,
+                        'Decision Tree': 0.1
+                    }
+                    
+                    # Calculate weighted probabilities
+                    malignant_votes = 0
+                    benign_votes = 0
+                    total_confidence = 0
+                    
+                    for model_name, pred in predictions.items():
+                        weight = model_weights.get(model_name, 0.25)
+                        if pred['prediction'].startswith('Malignant'):
+                            malignant_votes += weight
+                        else:
+                            benign_votes += weight
+                        total_confidence += float(pred['confidence'].strip('%')) * weight
+                    
+                    # Determine final prediction
+                    final_prediction = "Malignant (M)" if malignant_votes > benign_votes else "Benign (B)"
+                    confidence = total_confidence / sum(model_weights.values())
+                    certainty = "High" if confidence > 75 else "Medium" if confidence > 60 else "Low"
+                    
+                    # Display final decision with visual flair
+                    if final_prediction == "Malignant (M)":
+                        st.error(f"🚨 Final Decision: {final_prediction} (Certainty: {certainty})")
+                        st.image("sad.png", width=260)
+                    else:
+                        st.success(f"✅ Final Decision: {final_prediction} (Certainty: {certainty})")
+                        st.image("happy.png", width=260) 
+                    #____________________________________________________________________________________________                            
+                        def analyze_weighted_votes(malignant_votes, benign_votes):
+                            total_votes = malignant_votes + benign_votes
+                            malignant_percentage = (malignant_votes / total_votes) * 100
+                            benign_percentage = (benign_votes / total_votes) * 100
+                            
+                            if malignant_votes > benign_votes:
+                                final_decision = "Malignant (M)"
+                                agreement_summary = f"""
+                                Malignant received {malignant_percentage:.1f}% of the weighted votes,
+                                while Benign received {benign_percentage:.1f}%.
+                                Thus, the final diagnosis is **Malignant** based on majority weighted consensus.
+                                """
+                            else:
+                                final_decision = "Benign (B)"
+                                agreement_summary = f"""
+                                Benign received {benign_percentage:.1f}% of the weighted votes,
+                                while Malignant received {malignant_percentage:.1f}%.
+                                Thus, the final diagnosis is **Benign** based on majority weighted consensus.
+                                """
+                            
+                            return final_decision, agreement_summary.strip()
+#____________________________________________________________________________________________
+                    def generate_medical_report_dynamic(final_decision, certainty, agreement_summary):
+                        if final_decision == "Benign (B)":
+                            report = f"""
+                            -------------------------------
+                            🩺 Medical Diagnosis Report
+                            -------------------------------
+
+                            Final Decision:  
+                            ✅ Benign (B)
+
+                            Agreement Summary:  
+                            {agreement_summary}
+
+                            Certainty Level:  
+                            {certainty}
+
+                            Recommendation:  
+                            Regular monitoring is recommended. Please maintain routine health checks to ensure continued well-being.
+
+                            -------------------------------
+                            Doctor's Note  
+                            -------------------------------
+                            Your health is our priority. If you notice any unusual symptoms, please consult with a specialist for further guidance.
+                            """
+                        elif final_decision == "Malignant (M)":
+                            report = f"""
+                            -------------------------------
+                            🩺 Medical Diagnosis Report
+                            -------------------------------
+
+                            Final Decision:  
+                            ❌ Malignant (M)
+
+                            Agreement Summary:  
+                            {agreement_summary}
+
+                            Certainty Level:  
+                            {certainty}
+
+                            Recommendation:  
+                            Immediate consultation with a specialist is strongly advised. Prompt action is essential for effective treatment.
+
+                            -------------------------------
+                            Doctor's Note  
+                            -------------------------------
+                            Your health is critical, and we recommend urgent follow-up. Early intervention is key to successful treatment.
+                            """
+                        else:
+                            report = """
+                            -------------------------------
+                            ⚠️ Diagnosis Inconclusive
+                            -------------------------------
+
+                            Further diagnostic tests are required to confirm the diagnosis.
+
+                            -------------------------------
+                            Doctor's Note  
+                            -------------------------------
+                            Please consult with a medical professional for additional testing.
+                            """
+
+                        return report.strip()
+#____________________________________________________________________________________________
+                    final_prediction, agreement_summary = analyze_weighted_votes(malignant_votes, benign_votes)
+                    medical_report = generate_medical_report_dynamic(final_prediction, certainty, agreement_summary)
+#____________________________________________________________________________________________                           
+                    def generate_download_link(report_text, filename="medical_report.txt"):
+                        # Encode to base64
+                        b64 = base64.b64encode(report_text.encode()).decode()
+                        
+                        download_link_html = f"""
+                        <style>
+                        .download-btn-container {{
+                            margin: 25px 0;
+                            text-align: center;
+                        }}
+                        
+                        .download-btn {{
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
+                            color: #f0f0f0;
+                            padding: 14px 28px;
+                            font-size: 16px;
+                            font-weight: 600;
+                            text-decoration: none;
+                            border-radius: 50px;
+                            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+                            transition: all 0.3s ease;
+                            border: 1px solid #444;
+                            cursor: pointer;
+                            position: relative;
+                            overflow: hidden;
+                        }}
+                        
+                        .download-btn:hover {{
+                            background: linear-gradient(135deg, #444, #333);
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+                            color: #ffffff;
+                            border-color: #555;
+                        }}
+                        
+                        .download-btn:active {{
+                            transform: translateY(1px);
+                        }}
+                        
+                        .download-btn::before {{
+                            content: "";
+                            position: absolute;
+                            top: 0;
+                            left: -100%;
+                            width: 100%;
+                            height: 100%;
+                            background: linear-gradient(
+                                90deg,
+                                transparent,
+                                rgba(255, 255, 255, 0.1),
+                                transparent
+                            );
+                            transition: 0.5s;
+                        }}
+                        
+                        .download-btn:hover::before {{
+                            left: 100%;
+                        }}
+                        
+                        .download-icon {{
+                            margin-right: 10px;
+                            font-size: 18px;
+                            transition: transform 0.3s ease;
+                            filter: brightness(1.2);
+                        }}
+                        
+                        .download-btn:hover .download-icon {{
+                            transform: translateY(2px);
+                            filter: brightness(1.5);
+                        }}
+                        </style>
+                        
+                        <div class="download-btn-container">
+                            <a href="data:application/pdf;base64,{b64}" download="{filename}" class="download-btn">
+                                <span class="download-icon">📄</span>
+                                Download Full Medical Report
+                            </a>
+                        </div>
+                        """
+                        
+                        return download_link_html
+                    with st.spinner('🛠️ Generating detailed medical report...'):
+                        time.sleep(2)
+                        
+                        final_prediction, agreement_summary = analyze_weighted_votes(malignant_votes, benign_votes)
+                        medical_report = generate_medical_report_dynamic(final_prediction, certainty, agreement_summary)
+                        
+                        st.subheader("📝 Medical Report")
+                        st.info(medical_report)
+
+                        st.markdown(generate_download_link(medical_report), unsafe_allow_html=True)
+
+                    # Show detailed vote breakdown
+                    with st.expander("Voting Details"):
+                        st.write("**Model Votes:**")
+                        vote_df = pd.DataFrame([
+                            {
+                                'Model': name,
+                                'Vote': pred['prediction'],
+                                'Weight': f"{model_weights.get(name, 0.25)*100:.0f}%",
+                                'Confidence': pred['confidence']
+                            }
+                            for name, pred in predictions.items()
+                        ])
+                        st.dataframe(vote_df)
+                        
+                        st.write(f"**Weighted Decision:**")
+                        st.write(f"- Malignant Votes: {malignant_votes*100:.1f}%")
+                        st.write(f"- Benign Votes: {benign_votes*100:.1f}%")
+                        st.write(f"- Average Confidence: {confidence:.1f}%")
+
+            pass
     else:
         st.info("Please upload a Breast Cancer dataset CSV file to begin analysis.")
