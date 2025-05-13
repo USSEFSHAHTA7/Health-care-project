@@ -230,7 +230,7 @@ def detect_outliers(df):
     return outliers.sum().to_frame("Outlier Count")
 
 if st.session_state.current_tab == "📊 Predictions on Pretrained Models":
-        st.session_state.df = pd.read_csv('Breast_Cancer.csv')
+        st.session_state.df = pd.read_csv('Breast Cancer.csv')
         st.header(" Predictions on Pretrained Models with the preselected features")
         
         # Initialize selected_features in session state if it doesn't exist
