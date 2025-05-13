@@ -1352,14 +1352,14 @@ elif st.session_state.df is not None:
                     corr_threshold = st.slider("Correlation threshold", 0.0, 1.0, 0.7, 0.05)
                     network_layout = st.selectbox(
                         "Network layout",
-                        ['spring', 'circular', 'force', 'random'],
+                        ['circular'],
                         index=0
                     )
     
                 with network_col2:
                     node_size_by = st.selectbox(
                         "Node size by",
-                        ['degree', 'importance', 'uniform'],
+                        ['uniform'],
                         index=0
                     )
                     show_labels = st.checkbox("Show labels", value=True)
@@ -1700,7 +1700,7 @@ elif st.session_state.df is not None:
                 with heatmap_col1:
                     corr_method = st.selectbox(
                         "Correlation method",
-                        ['pearson', 'kendall', 'spearman'],
+                        ['pearson'],
                         index=0
                     )
                     
